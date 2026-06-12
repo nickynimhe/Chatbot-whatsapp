@@ -13,6 +13,11 @@ Bot desarrollado en Node.js con panel administrativo en tiempo real para gestió
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 </div>
+<br><br>
+
+<img src="docs/login-demo.gif" width="900" alt="Demo del sistema">
+
+</div>
 
 ---
 

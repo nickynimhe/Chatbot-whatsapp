@@ -1,0 +1,12 @@
+<script>
+    // Forzar audio context para permitir sonido en segundo plano
+    document.addEventListener('click', function initAudio() {
+        const audio = new Audio();
+        audio.volume = 0;
+        audio.play().then(() => {
+            audio.pause();
+            console.log('Audio context initialized');
+        }).catch(e => console.log('Audio init failed:', e));
+        document.removeEventListener('click', initAudio);
+    });
+</script>

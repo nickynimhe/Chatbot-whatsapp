@@ -1,0 +1,940 @@
+}
+
+// ─────────────────────────────────────────────
+//  LIMPIEZA DE SESIÓN
+// ─────────────────────────────────────────────
+function limpiarSesionBloqueada() {
+    try {
+        console.log('🧹 Limpiando procesos antiguos...');
+        execSync('pkill -f chrome || true', { stdio: 'ignore' });
+        execSync('pkill -f chromium || true', { stdio: 'ignore' });
+        const tabsLock = path.join(__dirname, CONFIG.AUTH_DATA_PATH, 'session', 'SingletonSocket');
+        if (fs.existsSync(tabsLock)) fs.unlinkSync(tabsLock);
+        console.log('✅ Limpieza completada');
+    } catch (error) {
+        console.log('⚠️ No se pudo limpiar (normal si no hay procesos)');
+    }
+}
+
+limpiarSesionBloqueada();
+
+// ─────────────────────────────────────────────
+//  CLIENTE WHATSAPP
+// ─────────────────────────────────────────────
+let clientReady = false;
+
+const client = new Client({
+    authStrategy: new LocalAuth({ clientId: 'bot-whatsapp', dataPath: CONFIG.AUTH_DATA_PATH }),
+    puppeteer: {
+        executablePath: "/home/chatbot/.cache/puppeteer/chrome/linux-146.0.7680.153/chrome-linux64/chrome",
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+        ]
+    }
+});
+
+// ─────────────────────────────────────────────
+//  SERVIDOR EXPRESS
+// ─────────────────────────────────────────────
+const appExpress = express();
+appExpress.use(cors());
+appExpress.use(express.json({ limit: '50mb' }));
+
+appExpress.get('/health', (req, res) => {
+    res.json({
+        status: clientReady ? 'ready' : 'not_ready',
+        clientInfo: clientReady ? client.info?.wid?.user : null,
+        uptime: process.uptime()
+    });
+});
+
+// MODIFICADO: linkPreview: false para quitar el análisis de links
+appExpress.post('/send-message', async (req, res) => {
+    try {
+        if (!clientReady || !client.info) {
+            return res.status(503).json({ error: 'Bot no listo' });
+        }
+        const { numero, mensaje, quoted_message } = req.body;
+        const soloDigitos = numero.replace(/@c\.us|@lid|@s\.whatsapp\.net/gi, '').replace(/\+/g, '').replace(/\s/g, '');
+        const numeroId = await client.getNumberId(soloDigitos);
+        if (!numeroId) return res.status(404).json({ error: 'Número no válido' });
+
+        let options = { linkPreview: false };
+        let mensajeFinal = mensaje;
+        
+        if (quoted_message && quoted_message.id) {
+            const cachedMsg = messageCache.get(quoted_message.id);
+            if (cachedMsg) {
+                try {
+                    await cachedMsg.reply(mensaje);
+                    res.json({ success: true });
+                    return;
+                } catch (e) {
+                    mensajeFinal = mensaje;
+                }
+            } else {
+                mensajeFinal = mensaje;
+            }
+        }
+
+        const sentMessage = await client.sendMessage(numeroId._serialized, mensajeFinal, options);
+
+        if (sentMessage && sentMessage.id) {
+            messageCache.set(sentMessage.id.id, sentMessage);
+            if (messageCache.size > 1000) {
+                const firstKey = messageCache.keys().next().value;
+                messageCache.delete(firstKey);
+            }
+        }
+
+        res.json({ success: true, whatsapp_message_id: sentMessage?.id?.id });
+    } catch (error) {
+        console.error('❌ Error en send-message:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+appExpress.post('/send-media', async (req, res) => {
+    try {
+        if (!clientReady || !client.info) {
+            return res.status(503).json({ error: 'Bot no listo' });
+        }
+        const { numero, url, caption, quoted_message } = req.body;
+        const soloDigitos = numero.replace(/@c\.us|@lid|@s\.whatsapp\.net/gi, '').replace(/\+/g, '').replace(/\s/g, '');
+        const numeroId = await client.getNumberId(soloDigitos);
+        if (!numeroId) return res.status(404).json({ error: 'Número no válido' });
+        
+        let options = { caption: caption || '', linkPreview: false };
+        
+        if (quoted_message && quoted_message.id) {
+            const cachedMsg = messageCache.get(quoted_message.id);
+            if (cachedMsg) {
+                try {
+                    const media = await MessageMedia.fromUrl(url);
+                    const sentMessage = await cachedMsg.reply(media, caption || '');
+                    if (sentMessage && sentMessage.id) {
+                        messageCache.set(sentMessage.id.id, sentMessage);
+                        if (messageCache.size > 1000) {
+                            const firstKey = messageCache.keys().next().value;
+                            messageCache.delete(firstKey);
+                        }
+                    }
+                    res.json({ success: true, whatsapp_message_id: sentMessage?.id?.id });
+                    return;
+                } catch (e) {
+                    // Fallback a send normal
+                }
+            }
+        }
+        
+        const media = await MessageMedia.fromUrl(url);
+        const sentMessage = await client.sendMessage(numeroId._serialized, media, options);
+
+        if (sentMessage && sentMessage.id) {
+            messageCache.set(sentMessage.id.id, sentMessage);
+            if (messageCache.size > 1000) {
+                const firstKey = messageCache.keys().next().value;
+                messageCache.delete(firstKey);
+            }
+        }
+
+        res.json({ success: true, whatsapp_message_id: sentMessage?.id?.id });
+    } catch (error) {
+        console.error('❌ Error en send-media:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+appExpress.post('/get-last-message', async (req, res) => {
+    try {
+        if (!clientReady || !client.info) {
+            return res.status(503).json({ error: 'Bot no listo' });
+        }
+        const { numero } = req.body;
+        const soloDigitos = numero.replace(/@c\.us|@lid|@s\.whatsapp\.net/gi, '').replace(/\+/g, '').replace(/\s/g, '');
+        const numeroId = await client.getNumberId(soloDigitos);
+        if (!numeroId) return res.status(404).json({ error: 'Número no válido' });
+
+        const chat = await client.getChatById(numeroId._serialized);
+        const messages = await chat.fetchMessages({ limit: 1 });
+
+        if (messages.length > 0) {
+            const lastMessage = messages[0];
+            res.json({
+                whatsapp_message_id: lastMessage.id?.id,
+                fromMe: lastMessage.fromMe
+            });
+        } else {
+            res.json({ whatsapp_message_id: null });
+        }
+    } catch (error) {
+        console.error('❌ Error en get-last-message:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+appExpress.post('/end-chat', async (req, res) => {
+    try {
+        if (!clientReady || !client.info) {
+            return res.status(503).json({ error: 'Bot no listo' });
+        }
+        const { numero } = req.body;
+        const soloDigitos = numero.replace(/@c\.us|@lid|@s\.whatsapp\.net/gi, '').replace(/\+/g, '').replace(/\s/g, '');
+        limpiarEstadoChat(soloDigitos);
+        const numeroId = await client.getNumberId(soloDigitos);
+        if (numeroId) {
+            await client.sendMessage(numeroId._serialized, MENSAJE_ATENCION_FINALIZADA);
+            await client.sendMessage(numeroId._serialized, MENSAJE_DESPEDIDA);
+        }
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+appExpress.post('/clear-state', async (req, res) => {
+    try {
+        const { numero } = req.body;
+        const soloDigitos = numero.replace(/\+/g, '').replace(/\s/g, '');
+        blacklist.delete(soloDigitos);
+        userState.delete(soloDigitos);
+        lastActivity.delete(soloDigitos);
+        inactivityWarningSentAt.delete(soloDigitos);
+        saveState();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+appExpress.get('/estado/:numero', async (req, res) => {
+    try {
+        const { numero } = req.params;
+        const soloDigitos = numero.replace(/\+/g, '').replace(/\s/g, '');
+        const enBlacklist = blacklist.has(soloDigitos);
+        const estado = userState.get(soloDigitos);
+        res.json({
+            numero: soloDigitos,
+            en_blacklist: enBlacklist,
+            estado: estado || null,
+            en_conversacion: userState.has(soloDigitos) || blacklist.has(soloDigitos)
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+appExpress.listen(CONFIG.BOT_PORT, '0.0.0.0', () => {
+    console.log(`📡 Servidor corriendo en puerto ${CONFIG.BOT_PORT}`);
+});
+
+// ─────────────────────────────────────────────
+//  PERSISTENCIA
+// ─────────────────────────────────────────────
+function saveState() {
+    try {
+        fs.writeFileSync(STATE_FILE, JSON.stringify({
+            userState: Object.fromEntries(userState),
+            blacklist: Object.fromEntries(blacklist),
+            lastActivity: Object.fromEntries(lastActivity),
+            inactivityWarningSentAt: Object.fromEntries(inactivityWarningSentAt)
+        }, null, 2));
+    } catch (e) {
+        console.error('❌ Error guardando estado:', e);
+    }
+}
+
+function loadState() {
+    try {
+        if (!fs.existsSync(STATE_FILE)) return;
+        const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+        userState = new Map(Object.entries(data.userState || {}));
+        blacklist = new Map(Object.entries(data.blacklist || {}));
+        lastActivity = new Map(Object.entries(data.lastActivity || {}));
+        inactivityWarningSentAt = new Map(Object.entries(data.inactivityWarningSentAt || {}));
+        console.log(`✅ Estado cargado`);
+    } catch (e) {
+        console.error('❌ Error cargando estado:', e);
+    }
+}
+
+function setUserState(n, e) { userState.set(n, e); saveState(); }
+function deleteUserState(n) { userState.delete(n); saveState(); }
+function setBlacklist(n) { blacklist.set(n, true); saveState(); }
+function touchActivity(n) { 
+    lastActivity.set(n, Date.now()); 
+    inactivityWarningSentAt.delete(n); 
+    saveState(); 
+}
+function limpiarEstadoChat(n) {
+    userState.delete(n);
+    blacklist.delete(n);
+    lastActivity.delete(n);
+    inactivityWarningSentAt.delete(n);
+    saveState();
+    console.log(`🧹 Estado limpiado para ${n}`);
+}
+
+loadState();
+
+// ─────────────────────────────────────────────
+//  UTILIDADES
+// ─────────────────────────────────────────────
+function normalizarTexto(texto = '') {
+    return texto.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function isSaludo(mensaje) {
+    const t = normalizarTexto(mensaje);
+    const saludos = ['hola', 'hello', 'hi', 'buenos dias', 'buenas tardes', 'buenas noches', 'buen dia', 'buenas', 'saludos', 'hey'];
+    return saludos.some(s => t === s || t.startsWith(`${s} `));
+}
+
+async function verificarChatActivo(numeroReal) {
+    try {
+        const response = await axios.get(`${CONFIG.BACKEND_URL}/api/chat/estado/${numeroReal}`, { timeout: 5000 });
+        return response.data?.activo === true;
+    } catch (error) {
+        return true;
+    }
+}
+
+async function verificarTieneAgente(numeroReal) {
+    try {
+        const response = await axios.get(`${CONFIG.BACKEND_URL}/api/chat/estado/${numeroReal}`, { timeout: 5000 });
+        return response.data?.con_agente === true;
+    } catch (error) {
+        return false;
+    }
+}
+
+async function obtenerMensajeValidacion() {
+    try {
+        const response = await axios.get(`${CONFIG.BACKEND_URL}/api/configuracion/mensaje_validacion_datos`, { timeout: 5000 });
+        return response.data?.mensaje || MENSAJE_VALIDACION;
+    } catch (error) {
+        return MENSAJE_VALIDACION;
+    }
+}
+
+// ─────────────────────────────────────────────
+//  EVENTOS WHATSAPP
+// ─────────────────────────────────────────────
+client.on('qr', qr => {
+    qrcode.generate(qr, { small: true });
+    console.log('📱 Escanea el QR');
+});
+
+client.on('ready', () => {
+    clientReady = true;
+    console.log('🚀 *megabot* listo!');
+});
+
+client.on('authenticated', () => {
+    console.log('🔐 Sesión autenticada');
+});
+
+client.on('auth_failure', msg => {
+    clientReady = false;
+    console.error('❌ Fallo de autenticación:', msg);
+    process.exit(1);
+});
+
+client.on('disconnected', reason => {
+    clientReady = false;
+    console.log(`🔴 Cliente desconectado: ${reason}`);
+    process.exit(1);
+});
+
+// ─────────────────────────────────────────────
+//  TEMPORIZADOR INACTIVIDAD
+// ─────────────────────────────────────────────
+setInterval(async () => {
+    if (!clientReady || !client.info?.wid) return;
+    const now = Date.now();
+    for (const [numeroReal, lastTime] of lastActivity.entries()) {
+        let tieneAgenteAsignado = false;
+        try {
+            const response = await axios.get(`${CONFIG.BACKEND_URL}/api/chat/estado/${numeroReal}`, { timeout: 3000 });
+            tieneAgenteAsignado = response.data?.con_agente === true;
+        } catch (error) {}
+        
+        if (tieneAgenteAsignado) {
+            continue;
+        }
+        
+        if (blacklist.has(numeroReal)) {
+            continue;
+        }
+        
+        const warningTime = inactivityWarningSentAt.get(numeroReal);
+        try {
+            const numeroId = await client.getNumberId(numeroReal);
+            if (!numeroId) { limpiarEstadoChat(numeroReal); continue; }
+            const chatId = numeroId._serialized;
+            if (!warningTime) {
+                if (now - Number(lastTime) >= CONFIG.INACTIVITY_WARNING_MS) {
+                    await client.sendMessage(chatId, MENU_CONTINUIDAD);
+                    setUserState(numeroReal, ESTADOS.ESPERANDO_CONTINUIDAD);
+                    inactivityWarningSentAt.set(numeroReal, now);
+                    saveState();
+                }
+            } else {
+                if (now - Number(warningTime) >= CONFIG.INACTIVITY_CLOSE_MS) {
+                    await client.sendMessage(chatId, MENSAJE_DESPEDIDA_INACTIVIDAD);
+                    
+                    try {
+                        await axios.post(`${CONFIG.BACKEND_URL}/api/chats/cerrar-por-inactividad`, {
+                            numero: numeroReal,
+                            motivo: "inactividad"
+                        });
+                        console.log(`✅ Chat cerrado por inactividad para ${numeroReal}`);
+                    } catch (err) {
+                        console.log('⚠️ Error cerrando chat por inactividad:', err.message);
+                    }
+                    
+                    limpiarEstadoChat(numeroReal);
+                }
+            }
+        } catch (err) {
+            limpiarEstadoChat(numeroReal);
+        }
+    }
+}, CONFIG.INACTIVITY_CHECK_INTERVAL_MS);
+
+// ========================================
+// WATCHDOG
+// ========================================
+let watchdogInterval = null;
+let fallosConsecutivos = 0;
+const MAX_FALLOS = 3;
+let ultimaActividadGlobal = Date.now();
+
+async function verificarSaludBot() {
+    try {
+        if (!clientReady) {
+            fallosConsecutivos++;
+            console.log(`⚠️ Watchdog: clientReady=false (fallo ${fallosConsecutivos}/${MAX_FALLOS})`);
+            if (fallosConsecutivos >= MAX_FALLOS) {
+                console.log('⚠️ Watchdog: Demasiados fallos, forzando reinicio');
+                process.exit(1);
+            }
+            return;
+        }
+        
+        if (!client.info || !client.info.wid) {
+            fallosConsecutivos++;
+            console.log(`⚠️ Watchdog: client.info inválido (fallo ${fallosConsecutivos}/${MAX_FALLOS})`);
+            if (fallosConsecutivos >= MAX_FALLOS) {
+                process.exit(1);
+            }
+            return;
+        }
+        
+        const ahora = Date.now();
+        if (ahora - ultimaActividadGlobal < 120000) {
+            console.log('✅ Watchdog: Actividad reciente, bot saludable');
+            fallosConsecutivos = 0;
+            return;
+        }
+        
+        try {
+            const state = await client.getState();
+            if (state !== 'CONNECTED') {
+                fallosConsecutivos++;
+                console.log(`⚠️ Watchdog: Estado anormal: ${state} (fallo ${fallosConsecutivos}/${MAX_FALLOS})`);
+                if (fallosConsecutivos >= MAX_FALLOS) {
+                    process.exit(1);
+                }
+                return;
+            }
+        } catch (stateError) {
+            fallosConsecutivos++;
+            console.log(`⚠️ Watchdog: Error obteniendo estado (fallo ${fallosConsecutivos}/${MAX_FALLOS}): ${stateError.message}`);
+            if (fallosConsecutivos >= MAX_FALLOS) {
+                process.exit(1);
+            }
+            return;
+        }
+        
+        fallosConsecutivos = 0;
+        console.log('✅ Watchdog: Bot saludable');
+        
+    } catch (error) {
+        fallosConsecutivos++;
+        console.log(`⚠️ Watchdog: Error inesperado (fallo ${fallosConsecutivos}/${MAX_FALLOS}): ${error.message}`);
+        if (fallosConsecutivos >= MAX_FALLOS) {
+            process.exit(1);
+        }
+    }
+}
+
+watchdogInterval = setInterval(verificarSaludBot, 120000);
+console.log('🔍 Watchdog iniciado - verificará la salud del bot cada 2 minutos');
+
+// ─────────────────────────────────────────────
+//  MENSAJES ENTRANTES
+// ─────────────────────────────────────────────
+client.on('message', async msg => {
+    try {
+        if (msg.fromMe) return;
+
+        ultimaActividadGlobal = Date.now();
+
+        messageCache.set(msg.id.id, msg);
+        if (messageCache.size > 1000) {
+            const firstKey = messageCache.keys().next().value;
+            messageCache.delete(firstKey);
+        }
+
+        const contacto = await msg.getContact();
+        const numeroReal = contacto.number;
+        const nombreReal = contacto.pushname || contacto.name || msg._data.notifyName || numeroReal;
+
+        let textoOriginal = msg.body || '';
+        let urlAdjunto = null;
+        let tipoAdjunto = null;
+        
+        let esUbicacion = false;
+        let latitud = null;
+        let longitud = null;
+        let nombreUbicacion = null;
+        let direccionUbicacion = null;
+        
+        if (msg.location) {
+            esUbicacion = true;
+            latitud = msg.location.latitude;
+            longitud = msg.location.longitude;
+            nombreUbicacion = msg.location.name || null;
+            direccionUbicacion = msg.location.address || null;
+            console.log(`📍 UBICACIÓN RECIBIDA: ${latitud}, ${longitud}`);
+        }
+        
+        // ========== DETECTAR Y SUBIR AUDIO ==========
+        let esAudio = false;
+        let audioUrl = null;
+        
+        if (msg.hasMedia) {
+            const mediaType = msg.type;
+            if (mediaType === 'audio' || mediaType === 'ptt' ||
+                (msg._data && msg._data.mimetype && msg._data.mimetype.startsWith('audio/'))) {
+                esAudio = true;
+                console.log(`🎤 AUDIO RECIBIDO de ${numeroReal}`);
+                
+                try {
+                    const media = await msg.downloadMedia();
+                    if (media) {
+                        const formData = new FormData();
+                        formData.append('archivo', Buffer.from(media.data, 'base64'), {
+                            filename: `audio_${Date.now()}.${media.mimetype.split('/')[1] || 'ogg'}`,
+                            contentType: media.mimetype
+                        });
+                        const uploadResp = await axios.post(
+                            `${CONFIG.BACKEND_URL}/api/bot/upload`,
+                            formData,
+                            { headers: formData.getHeaders(), maxContentLength: Infinity }
+                        );
+                        if (uploadResp.data.url) {
+                            audioUrl = uploadResp.data.url;
+                            tipoAdjunto = uploadResp.data.tipo || 'audio';
+                            console.log(`✅ Audio subido: ${audioUrl}`);
+                        }
+                    }
+                } catch (e) {
+                    console.error('❌ Error subiendo audio:', e.message);
+                }
+                
+                // Avisar al cliente que no se aceptan audios
+                await msg.reply(MENSAJE_AUDIO_NO_SOPORTADO_CLIENTE);
+                console.log(`✅ Mensaje automático enviado al cliente`);
+
+                const payloadAudio = {
+                    numero: numeroReal,
+                    mensaje: `🎤 [Audio recibido] El cliente envió un audio.`,
+                    nombre: nombreReal,
+                    url_adjunto: audioUrl,
+                    tipo: 'audio_no_soportado',
+                    whatsapp_message_id: msg.id.id,
+                    quoted_message_id: null,
+                    quoted_message_text: null,
+                    es_audio: true,
+                    es_flujo_bot: true,
+                    metadata_archivo: JSON.stringify({
+                        es_respuesta_automatica: true,
+                        es_audio_detectado: true,
+                        mensaje_auto: MENSAJE_AUDIO_NO_SOPORTADO_CLIENTE
+                    })
+                };
+                axios.post(`${CONFIG.BACKEND_URL}/api/webhook/whatsapp`, payloadAudio)
+                    .catch(err => console.error('❌ Error webhook audio:', err.message));
+                console.log(`📤 Webhook audio enviado al backend para ${numeroReal}`);
+
+                touchActivity(numeroReal);
+                return;
+            }
+        }
+
+        // Subir otros archivos
+        if (msg.hasMedia && !esUbicacion && !esAudio) {
+            try {
+                const media = await msg.downloadMedia();
+                if (media) {
+                    const formData = new FormData();
+                    formData.append('archivo', Buffer.from(media.data, 'base64'), {
+                        filename: `whatsapp_${Date.now()}.${media.mimetype.split('/')[1]}`,
+                        contentType: media.mimetype
+                    });
+                    const uploadResp = await axios.post(
+                        `${CONFIG.BACKEND_URL}/api/bot/upload`,
+                        formData,
+                        { headers: formData.getHeaders(), maxContentLength: Infinity }
+                    );
+                    if (uploadResp.data.url) {
+                        urlAdjunto = uploadResp.data.url;
+                        tipoAdjunto = uploadResp.data.tipo;
+                        textoOriginal = textoOriginal || uploadResp.data.nombre;
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Error subiendo archivo:', e.message);
+            }
+        }
+
+        let textoParaProcesar = textoOriginal;
+        if (esUbicacion) {
+            textoParaProcesar = `📍 Ubicación compartida: ${latitud}, ${longitud}`;
+            if (nombreUbicacion) textoParaProcesar += ` - ${nombreUbicacion}`;
+        }
+
+        const texto = normalizarTexto(esUbicacion ? '' : textoOriginal);
+        
+        if (esUbicacion) {
+            console.log(`📨 ${nombreReal} (${numeroReal}): 📍 UBICACIÓN`);
+        } else if (esAudio) {
+            console.log(`📨 ${nombreReal} (${numeroReal}): 🎤 AUDIO`);
+        } else {
+            console.log(`📨 ${nombreReal} (${numeroReal}): ${textoOriginal.substring(0, 40)}`);
+        }
+
+        let quoted_message_id = null;
+        let quoted_message_text = null;
+        if (msg.hasQuotedMsg) {
+            try {
+                const quotedMsg = await msg.getQuotedMessage();
+                if (quotedMsg) {
+                    quoted_message_id = quotedMsg.id.id;
+                    quoted_message_text = quotedMsg.body || '';
+                }
+            } catch (e) {}
+        }
+
+        const esOpcionMenuRapida = /^[1-8]$/.test(texto);
+        
+        if (!esOpcionMenuRapida) {
+            const payload = {
+                numero: numeroReal,
+                mensaje: esUbicacion ? textoParaProcesar : textoOriginal,
+                nombre: nombreReal,
+                url_adjunto: urlAdjunto,
+                tipo: tipoAdjunto || (esUbicacion ? 'location' : 'texto'),
+                whatsapp_message_id: msg.id.id,
+                quoted_message_id: quoted_message_id,
+                quoted_message_text: quoted_message_text,
+                es_ubicacion: esUbicacion,
+                latitud: latitud,
+                longitud: longitud,
+                nombre_ubicacion: nombreUbicacion,
+                direccion_ubicacion: direccionUbicacion,
+                es_audio: false,
+                es_flujo_bot: true,
+                metadata_archivo: null
+            };
+            
+            axios.post(`${CONFIG.BACKEND_URL}/api/webhook/whatsapp`, payload)
+                .catch(err => console.error('❌ Error en webhook:', err.message));
+        } else {
+            console.log(`⚡ Opción ${texto} - Webhook omitido para velocidad instantánea`);
+        }
+
+        const tieneAgente = await verificarTieneAgente(numeroReal);
+        if (tieneAgente) {
+            console.log(`👤 ${numeroReal} tiene agente asignado, bot ignorará el mensaje`);
+            return;
+        }
+
+        if (blacklist.has(numeroReal)) {
+            const chatActivo = await verificarChatActivo(numeroReal);
+            if (!chatActivo) {
+                console.log(`🔄 Chat cerrado para ${numeroReal}, reiniciando flujo del bot`);
+                limpiarEstadoChat(numeroReal);
+            } else {
+                console.log(`👤 ${numeroReal} en soporte humano, bot ignorado`);
+                return;
+            }
+        }
+
+        if (esUbicacion) {
+            touchActivity(numeroReal);
+            return;
+        }
+
+        touchActivity(numeroReal);
+        const menuPrincipal = getMenuPrincipal();
+
+        // ========== SALUDO CON MODO FALLA ==========
+        if (isSaludo(texto)) {
+            touchActivity(numeroReal);
+            
+            if (modoFallaActivoCache && modoFallaZonaCache) {
+                const yaValidoZona = userState.get(numeroReal) === 'VALIDADO_ZONA_NO_AFECTADA';
+                
+                if (!yaValidoZona) {
+                    await msg.reply(`⚠️ ESTIMADO CLIENTE: Presentamos una falla técnica en ${modoFallaZonaCache}. ¿Usted se encuentra en esta zona? Por favor responda *SÍ* o *NO*`);
+                    setUserState(numeroReal, 'ESPERANDO_CONFIRMACION_ZONA_FALLA');
+                    return;
+                } else {
+                    await msg.reply(menuPrincipal);
+                    return;
+                }
+            }
+            
+            await msg.reply(menuPrincipal);
+            return;
+        }
+
+        // ========== MANEJAR RESPUESTA DE CONFIRMACIÓN DE ZONA ==========
+        if (userState.get(numeroReal) === 'ESPERANDO_CONFIRMACION_ZONA_FALLA') {
+            const respuesta = texto.toLowerCase();
+            
+            if (respuesta === 'si' || respuesta === 'sí' || respuesta === '1') {
+                await msg.reply(modoFallaMensajeCache);
+                await msg.reply(MENSAJE_DESPEDIDA);
+                
+                try {
+                    await axios.post(`${CONFIG.BACKEND_URL}/api/chats/cerrar-por-inactividad`, {
+                        numero: numeroReal,
+                        motivo: "modo_falla_zona_afectada"
+                    });
+                    console.log(`✅ Chat cerrado por modo falla para ${numeroReal}`);
+                } catch (err) {
+                    console.log('⚠️ Error cerrando chat por modo falla:', err.message);
+                }
+                
+                limpiarEstadoChat(numeroReal);
+                console.log(`🔴 Cliente ${numeroReal} confirmó estar en zona afectada (${modoFallaZonaCache}), chat cerrado`);
+                return;
+            } 
+            else if (respuesta === 'no' || respuesta === '2') {
+                deleteUserState(numeroReal);
+                setUserState(numeroReal, 'VALIDADO_ZONA_NO_AFECTADA');
+                await msg.reply(`✅ Gracias por confirmar. Al no estar en la zona afectada, continuamos con el servicio normal.\n\n${menuPrincipal}`);
+                touchActivity(numeroReal);
+                console.log(`🟢 Cliente ${numeroReal} confirmó NO estar en zona afectada, flujo normal`);
+                return;
+            }
+            else {
+                await msg.reply(`Opción no válida. Por favor responda *SÍ* si está en ${modoFallaZonaCache}, o *NO* si no lo está.`);
+                return;
+            }
+        }
+
+        // ========== ESTADO: ESPERANDO_VALIDACION ==========
+        if (userState.get(numeroReal) === ESTADOS.ESPERANDO_VALIDACION) {
+            console.log(`📝 ${numeroReal} envió datos de validación: ${textoOriginal.substring(0, 50)}`);
+            
+            // Guardar los datos en el backend y poner en cola de espera
+            try {
+                await axios.post(`${CONFIG.BACKEND_URL}/api/chat/guardar-datos-cliente`, {
+                    numero: numeroReal,
+                    nombre: nombreReal,
+                    datos: textoOriginal,
+                    estado: 'en_espera'
+                });
+                console.log(`✅ Datos del cliente ${numeroReal} guardados en backend`);
+            } catch (err) {
+                console.log('⚠️ Error guardando datos del cliente:', err.message);
+            }
+            
+            setBlacklist(numeroReal);
+            deleteUserState(numeroReal);
+            
+            let hayAsesores = false;
+            try {
+                const response = await axios.get(`${CONFIG.BACKEND_URL}/api/chat/hay-agentes-disponibles`, { timeout: 5000 });
+                hayAsesores = response.data?.hay_agentes === true;
+                console.log(`📊 Asesores disponibles: ${hayAsesores ? 'SÍ' : 'NO'}`);
+            } catch (err) {
+                console.log('⚠️ Error verificando asesores:', err.message);
+            }
+            
+            if (hayAsesores) {
+                await msg.reply(`✅ Gracias por proporcionar sus datos. En unos momentos un asesor lo atenderá.`);
+                
+                await axios.post(`${CONFIG.BACKEND_URL}/api/chat/marcar-espera`, {
+                    numero: numeroReal,
+                    nombre: nombreReal,
+                    asignar_ahora: true
+                });
+                console.log(`✅ Cliente ${numeroReal} validado, será asignado inmediatamente`);
+            } else {
+                await msg.reply(`✅ Datos guardados correctamente. Quedará en espera y será atendido cuando un asesor esté disponible.`);
+                
+                await axios.post(`${CONFIG.BACKEND_URL}/api/chat/marcar-espera`, {
+                    numero: numeroReal,
+                    nombre: nombreReal,
+                    datos: textoOriginal,
+                    asignar_ahora: false
+                });
+                console.log(`✅ Cliente ${numeroReal} validado, en espera (no hay asesores)`);
+            }
+            return;
+        }
+
+        // ========== ESTADO: ESPERANDO_CONTINUIDAD ==========
+        if (userState.get(numeroReal) === ESTADOS.ESPERANDO_CONTINUIDAD) {
+            if (texto === '1') { 
+                deleteUserState(numeroReal);
+                const tieneAgenteAsignado = await verificarTieneAgente(numeroReal);
+                
+                if (tieneAgenteAsignado) {
+                    await msg.reply(`✅ Conversación reactivada. Un asesor le atenderá en breve.`);
+                } else {
+                    await msg.reply(`✅ Conversación reactivada. ¿En qué más puedo ayudarle?\n\n${menuPrincipal}`);
+                }
+                touchActivity(numeroReal);
+                return; 
+            }
+            if (texto === '2') { 
+                await msg.reply(MENSAJE_DESPEDIDA); 
+                limpiarEstadoChat(numeroReal); 
+                return; 
+            }
+            await msg.reply(`Opción no válida.\n\n${MENU_CONTINUIDAD}`);
+            return;
+        }
+
+        // ========== ESTADO: ESPERANDO_NAVEGACION ==========
+        if (userState.get(numeroReal) === ESTADOS.ESPERANDO_NAVEGACION) {
+            if (texto === '1') { 
+                deleteUserState(numeroReal); 
+                await msg.reply(menuPrincipal); 
+                touchActivity(numeroReal); 
+                return; 
+            }
+            if (texto === '2') { 
+                await msg.reply(MENSAJE_DESPEDIDA); 
+                limpiarEstadoChat(numeroReal); 
+                return; 
+            }
+            await msg.reply(`Opción no válida.\n\n${MENU_NAVEGACION}`);
+            return;
+        }
+
+        // ========== FINALIZAR ==========
+        if (texto === '0') {
+            await msg.reply(MENSAJE_DESPEDIDA);
+            limpiarEstadoChat(numeroReal);
+            return;
+        }
+
+        // ========== OPCIONES DEL MENÚ ==========
+        if (/^[1-9]$/.test(texto)) {
+            const opciones = getOpciones();
+            
+            if (texto === '9') {
+                console.log(`🆘 Cliente ${numeroReal} seleccionó SOPORTE TÉCNICO`);
+                
+                let hayAsesores = false;
+                try {
+                    const response = await axios.get(`${CONFIG.BACKEND_URL}/api/chat/hay-agentes-disponibles`, { timeout: 5000 });
+                    hayAsesores = response.data?.hay_agentes === true;
+                    console.log(`📊 Asesores disponibles: ${hayAsesores ? 'SÍ' : 'NO'}`);
+                } catch (err) {
+                    console.log('⚠️ Error verificando asesores:', err.message);
+                }
+                
+                const mensajeValidacion = await obtenerMensajeValidacion();
+                
+                if (hayAsesores) {
+                    await msg.reply(mensajeValidacion);
+                    setUserState(numeroReal, ESTADOS.ESPERANDO_VALIDACION);
+                    console.log(`✅ Cliente ${numeroReal} en validación (HAY asesores disponibles)`);
+                } else {
+                    // MENSAJE UNIFICADO DE AUSENCIA (UN SOLO MENSAJE)
+                    await msg.reply(MENSAJE_NO_DISPONIBLE);
+                    setUserState(numeroReal, ESTADOS.ESPERANDO_VALIDACION);
+                    console.log(`📝 Cliente ${numeroReal} en validación (SIN asesores, irá a cola de espera)`);
+                }
+                
+                touchActivity(numeroReal);
+                return;
+            } else {
+                await msg.reply(opciones[texto]);
+                setUserState(numeroReal, ESTADOS.ESPERANDO_NAVEGACION);
+                touchActivity(numeroReal);
+                return;
+            }
+        }
+
+        await msg.reply(MENSAJE_POR_DEFECTO);
+        touchActivity(numeroReal);
+
+    } catch (error) {
+        console.error('❌ Error en mensaje entrante:', error.message);
+    }
+});
+
+// ─────────────────────────────────────────────
+//  COMANDOS DEL ASESOR
+// ─────────────────────────────────────────────
+client.on('message_create', async msg => {
+    try {
+        if (!msg.fromMe) return;
+        const texto = normalizarTexto(msg.body || '');
+        if (texto !== 'end' && texto !== 'main') return;
+
+        let numeroReal;
+        try {
+            const chat = await msg.getChat();
+            const contacto = await chat.getContact();
+            numeroReal = contacto.number;
+        } catch (e) {
+            numeroReal = msg.to.replace(/@c\.us|@lid|@s\.whatsapp\.net/gi, '').replace(/\+/g, '').replace(/\s/g, '');
+        }
+
+        const numeroId = await client.getNumberId(numeroReal);
+        if (!numeroId) return;
+        const chatId = numeroId._serialized;
+
+        if (texto === 'main') {
+            limpiarEstadoChat(numeroReal);
+            await client.sendMessage(chatId, MENSAJE_ATENCION_FINALIZADA);
+            await client.sendMessage(chatId, getMenuPrincipal());
+            touchActivity(numeroReal);
+        }
+
+        if (texto === 'end') {
+            limpiarEstadoChat(numeroReal);
+            await client.sendMessage(chatId, MENSAJE_ATENCION_FINALIZADA);
+            await client.sendMessage(chatId, MENSAJE_DESPEDIDA);
+        }
+    } catch (error) {
+        console.error('❌ Error en comando asesor:', error.message);
+    }
+});
+
+// ─────────────────────────────────────────────
+//  INICIAR
+// ─────────────────────────────────────────────
+process.on('SIGINT', () => { saveState(); process.exit(); });
+process.on('SIGTERM', () => { saveState(); process.exit(); });
+
+client.initialize();

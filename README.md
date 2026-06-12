@@ -145,8 +145,8 @@ Proyecto desarrollado como solución de atención al cliente mediante WhatsApp, 
 ### 1. Clonar repositorio
 
 ```bash
-git clone https://github.com/tuusuario/bot-whatsapp-mastv.git
-cd bot-whatsapp-mastv
+git clone https://github.com/nickynimhe/Chatbot-whatsapp.git
+cd Chatbot-whatsapp
 ```
 
 ### 2. Instalar dependencias

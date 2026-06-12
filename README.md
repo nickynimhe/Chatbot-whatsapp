@@ -1,155 +1,147 @@
-Tienes toda la razón. Ese README que te puse estaba orientado a la empresa. Para tu caso (desarrollador independiente, proyecto voluntario), el README debe reflejar que **tú hiciste el trabajo**.
-
-## README corregido (para ti como desarrollador):
+Aquí tienes un README más natural, personal y con estilo, sin parecer escrito por IA:
 
 ```markdown
-# 🤖 WhatsApp Bot - Sistema de Atención al Cliente
+# 🤖 whatsapp-bot-mastv
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-20.x-green)](https://nodejs.org/)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-Bot-25D366)](https://whatsapp.com)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
-Bot de WhatsApp desarrollado para M@stv Producciones como parte de un requerimiento técnico.
-
----
-
-## 📋 Tabla de Contenidos
-
-- [Características](#-características)
-- [Menú del Bot](#-menú-del-bot)
-- [Arquitectura](#-arquitectura)
-- [Tecnologías](#-tecnologías)
-- [Instalación](#-instalación)
-- [Uso](#-uso)
-- [Contacto](#-contacto)
+> Bot de WhatsApp + panel administrativo que hice para M@stv Producciones.  
+> El bot responde automáticamente opciones del menú y puede pasar el chat a un agente real cuando toca.
 
 ---
 
-## ✨ Características
+## 📦 ¿Qué hace esto?
 
-### Bot de WhatsApp
-- Menú interactivo con 9 opciones
-- Respuestas automáticas para información común
-- Soporte técnico con validación de datos
-- Detección de audios con mensaje automático
-- Control de inactividad y cierre de chat
-- Modo falla para emergencias
-- Reconexión automática 24/7
+Básicamente es un bot que atiende por WhatsApp. La gente escribe `hola`, el bot muestra un menú, y dependiendo de lo que elijan:
 
-### Panel de Administración
-- Gestión de agentes (disponible/ocupado/descanso)
-- Asignación automática de tickets
-- Chat en tiempo real con WebSockets
-- Historial de conversaciones
-- Subida y envío de archivos
+- Les da info automática (planes, cobertura, oficinas...)
+- O los pasa con un agente si ocupan soporte real
+
+También tiene un panel donde los agentes pueden ver los chats, responder, subir archivos, y ver el historial.
 
 ---
 
-## 📱 Menú del Bot
+## 🧠 Tecnologías que usé
 
-| Opción | Servicio |
+| Capa | Qué usé |
+|------|---------|
+| Bot | whatsapp-web.js, Puppeteer |
+| Backend | Node.js, Express, Socket.io, JWT |
+| Frontend | React, Vite, TailwindCSS |
+| Base de datos | PostgreSQL |
+| Servidor | PM2 en Ubuntu |
+
+---
+
+## 📱 El menú del bot
+
+| Opción | Qué hace |
 |--------|----------|
-| 1 | Pagar factura |
-| 2 | Conocer planes |
+| 1 | Info de pagos |
+| 2 | Planes disponibles |
 | 3 | Cobertura |
-| 4 | Adquirir servicios |
-| 5 | Puntos de pago y oficinas |
-| 6 | Facturación y cartera |
+| 4 | Cómo adquirir servicios |
+| 5 | Oficinas y puntos de pago |
+| 6 | Facturación |
 | 7 | Soporte M@STV PLAY |
-| 8 | Calidad de la red |
-| 9 | Soporte técnico (atención humana) |
-| 0 | Finalizar |
+| 8 | Test de velocidad |
+| 9 | Pasar con un asesor humano |
+| 0 | Salir |
+
+El bot se desconecta por inactividad y tiene un "modo falla" por si algo se cae.
 
 ---
 
-## 🏗️ Arquitectura
+## 🏗️ Cómo está armado
 
 ```
-WhatsApp → Bot (puerto 9019) → Backend (9020) → Frontend (5173) → PostgreSQL
+WhatsApp → Bot (puerto 9019) → Backend (9020) → Frontend (5173) → BD
 ```
 
----
-
-## 🛠️ Tecnologías
-
-- **Bot**: whatsapp-web.js, Puppeteer, Node.js
-- **Backend**: Express, Socket.io, PostgreSQL, JWT
-- **Frontend**: React, Vite, TailwindCSS
-- **Servidor**: PM2, Ubuntu
+Todo se maneja con WebSockets, entonces los mensajes llegan en tiempo real al panel.
 
 ---
 
-## 📦 Instalación
+## 🚀 Instalación (por si alguien quiere correrlo)
 
 ```bash
-git clone https://github.com/tuusuario/bot-whatsapp-mastv.git
-cd bot-whatsapp-mastv
+git clone https://github.com/JarithHernandez/whatsapp-bot-mastv.git
+cd whatsapp-bot-mastv
 npm install
 cd soporte-whatsapp/backend && npm install
 cd ../frontend && npm install && npm run build
 ```
 
----
-
-## 🚀 Uso
+Después configuras las variables de entorno, tu base de datos, y lo corres con PM2:
 
 ```bash
-# Iniciar todos los servicios
 pm2 start ecosystem.config.js
+pm2 save
+```
 
-# Escanear QR con WhatsApp
-pm2 logs bot-whatsapp
+Escaneás el QR que aparece en los logs y ya.
+
+---
+
+## 📁 Algo de la estructura
+
+```
+bot-whatsapp/
+├── app.js
+├── ecosystem.config.js
+├── soporte-whatsapp/
+│   ├── backend/       # API + WebSockets
+│   └── frontend/      # Panel de agentes
+└── .wwebjs_auth/      # Sesión guardada de WhatsApp
 ```
 
 ---
 
-## 👨‍💻 Desarrollador
+## 👤 Sobre mí
 
-**Tu Nombre**
+Soy **Jarith Hernandez** (nick: `nickynimhe`), desarrollador full-stack.  
+Este proyecto lo hice como parte de un requerimiento técnico para una empresa de telecomunicaciones.
 
-- GitHub: [@tugithub](https://github.com/tugithub)
-- LinkedIn: [tulinkedin](https://linkedin.com/in/tuusuario)
-- Portafolio: [tuportafolio.com](https://tuportafolio.com)
+[![GitHub](https://img.shields.io/badge/GitHub-JarithHernandez-181717?style=flat-square&logo=github)](https://github.com/JarithHernandez)
 
 ---
 
 ## 📄 Licencia
 
-MIT License - Copyright (c) 2026 [Tu Nombre]
-
-Esto significa que puedes usar, modificar y distribuir este proyecto libremente.
+MIT — libre de usar, modificar y compartir. Solo da crédito.
 
 ---
 
-## 🙏 Nota
-
-Este proyecto fue desarrollado como parte de un requerimiento técnico para M@stv Producciones.
-El código se comparte con fines educativos y de referencia.
+> ¿Preguntas? Abrí un issue o háblame directamente.
 ```
 
-## En la sección de contacto, pon esto:
+## También podés agregar imágenes
+
+Si querés que se vea más lindo, podés agregar capturas del bot o del panel:
 
 ```markdown
-## 📞 Contacto
+## 🖼️ Capturas
 
-- 📧 Email: tuemail@gmail.com
-- 💼 LinkedIn: /in/tuusuario
-- 🐙 GitHub: @tugithub
-- 🌐 Portafolio: tuportafolio.com
+![Menú del bot](https://i.imgur.com/xxxxx.png)
+![Panel de agentes](https://i.imgur.com/yyyyy.png)
 ```
 
-## O si quieres algo más corto:
+## Y un badge de visitas (opcional)
 
 ```markdown
-## 👤 Autor
-
-**Tu Nombre**
-
-[![GitHub](https://img.shields.io/badge/GitHub-@tugithub-181717?logo=github)](https://github.com/tugithub)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-tuusuario-0A66C2?logo=linkedin)](https://linkedin.com/in/tuusuario)
-[![Email](https://img.shields.io/badge/Email-tuemail@gmail.com-EA4335?logo=gmail)](mailto:tuemail@gmail.com)
+![Visitas](https://komarev.com/ghpvc/?username=JarithHernandez&label=Repo+Views&color=blue&style=flat-square)
 ```
 
-**Así queda claro que TÚ hiciste el trabajo.** La empresa solo se menciona como el cliente/requerimiento, no como el dueño del código.
+## Tips para que NO parezca IA:
 
-¿Quieres que ajuste algo más?
+| Hacer ✅ | Evitar ❌ |
+|---------|----------|
+| "hice", "usé", "me funcionó" | "se implementó", "se utilizó" |
+| "básicamente", "onda", "qué sé yo" | textos demasiado formales |
+| Emojis naturales 😅 | Emojis exagerados |
+| Explicaciones cortas y directas | Párrafos eternos |
+
+¿Querés que le agregue o le saque algo?

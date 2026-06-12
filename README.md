@@ -69,6 +69,7 @@ Proyecto desarrollado como solución de atención al cliente mediante WhatsApp, 
 | 3     Ver cobertura             
 | 4     Adquirir servicios        
 | 5     Oficinas y puntos de pago
+
 | 6     Facturación y cartera     
 | 7     Soporte M@STV PLAY        
 | 8     Calidad de la red         

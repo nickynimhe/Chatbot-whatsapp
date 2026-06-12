@@ -190,7 +190,7 @@ pm2 logs bot-whatsapp
 
 ---
 
-## 📂 Estructura del Proyecto
+##  Estructura del Proyecto
 
 ```bash
 project/
@@ -208,7 +208,7 @@ project/
 
 ---
 
-## 📈 Funcionalidades Destacadas
+##  Funcionalidades Destacadas
 
 | Funcionalidad         | Estado |
 | --------------------- | ------ |
@@ -222,23 +222,23 @@ project/
 
 ---
 
-## 👨‍💻 Autor
+##  Autor
 
-### Tu Nombre
+### Jarith Nicol Hernandez Moreno
 
 Desarrollador Full Stack
 
-🐙 GitHub: https://github.com/tuusuario
+ GitHub: https://github.com/tuusuario
 
-💼 LinkedIn: https://linkedin.com/in/tuusuario
+ LinkedIn: https://linkedin.com/in/tuusuario
 
-🌐 Portafolio: https://tuportafolio.com
+ Portafolio: https://tuportafolio.com
 
-📧 Email: [tuemail@gmail.com](mailto:tuemail@gmail.com)
+ Email: [tuemail@gmail.com](mailto:tuemail@gmail.com)
 
 ---
 
-## 🙏 Agradecimientos
+## Agradecimientos
 
 Este proyecto fue desarrollado como parte de un requerimiento técnico para M@stv Producciones.
 
@@ -246,6 +246,6 @@ La implementación, arquitectura, desarrollo y documentación fueron realizados 
 
 ---
 
-## 📄 Licencia
+##  Licencia
 
-MIT License © 2026 Tu Nombre
+MIT License © 2026 Jarith Nicol HernandeZ Moreno

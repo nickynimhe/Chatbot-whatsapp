@@ -1,147 +1,251 @@
-Aquí tienes un README más natural, personal y con estilo, sin parecer escrito por IA:
+#  WhatsApp Customer Support Bot
 
-```markdown
-# 🤖 whatsapp-bot-mastv
+<div align="center">
 
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
+### Sistema de atención al cliente vía WhatsApp
 
-> Bot de WhatsApp + panel administrativo que hice para M@stv Producciones.  
-> El bot responde automáticamente opciones del menú y puede pasar el chat a un agente real cuando toca.
+Bot desarrollado en Node.js con panel administrativo en tiempo real para gestión de tickets y soporte técnico.
 
----
+![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?logo=node.js\&logoColor=white)
+![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react\&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql\&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Socket.IO-Realtime-black?logo=socketdotio)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## 📦 ¿Qué hace esto?
-
-Básicamente es un bot que atiende por WhatsApp. La gente escribe `hola`, el bot muestra un menú, y dependiendo de lo que elijan:
-
-- Les da info automática (planes, cobertura, oficinas...)
-- O los pasa con un agente si ocupan soporte real
-
-También tiene un panel donde los agentes pueden ver los chats, responder, subir archivos, y ver el historial.
+</div>
 
 ---
 
-## 🧠 Tecnologías que usé
+##  Descripción
 
-| Capa | Qué usé |
-|------|---------|
-| Bot | whatsapp-web.js, Puppeteer |
-| Backend | Node.js, Express, Socket.io, JWT |
-| Frontend | React, Vite, TailwindCSS |
-| Base de datos | PostgreSQL |
-| Servidor | PM2 en Ubuntu |
+Proyecto desarrollado como solución de atención al cliente mediante WhatsApp, permitiendo automatizar consultas frecuentes y escalar conversaciones a agentes humanos mediante una plataforma web en tiempo real.
 
----
+### Objetivos
 
-## 📱 El menú del bot
-
-| Opción | Qué hace |
-|--------|----------|
-| 1 | Info de pagos |
-| 2 | Planes disponibles |
-| 3 | Cobertura |
-| 4 | Cómo adquirir servicios |
-| 5 | Oficinas y puntos de pago |
-| 6 | Facturación |
-| 7 | Soporte M@STV PLAY |
-| 8 | Test de velocidad |
-| 9 | Pasar con un asesor humano |
-| 0 | Salir |
-
-El bot se desconecta por inactividad y tiene un "modo falla" por si algo se cae.
+- Reducir tiempos de respuesta
+- Automatizar solicitudes frecuentes
+- Gestionar tickets de soporte
+- Centralizar la atención al cliente
+- Mantener disponibilidad 24/7
 
 ---
 
-## 🏗️ Cómo está armado
+##  Características Principales
 
+###  Bot Inteligente
+
+* Menú interactivo de servicios
+* Flujo conversacional guiado
+* Atención automática 24/7
+* Validación de datos del usuario
+* Reconocimiento de mensajes de audio
+* Control de sesiones e inactividad
+* Reconexión automática ante fallos
+
+###  Atención Humana
+
+* Transferencia automática a agentes
+* Sistema de tickets
+* Cola de atención
+* Seguimiento de conversaciones
+* Historial completo
+
+###  Panel Administrativo
+
+* Gestión de agentes
+* Estado disponible / ocupado / descanso
+* Chat en tiempo real
+* Dashboard operativo
+* Envío de archivos
+* Historial de conversaciones
+
+---
+
+##  Menú del Bot
+
+
+| 1     Pagar factura             
+| 2    Consultar planes          
+| 3     Ver cobertura             
+| 4     Adquirir servicios        
+| 5     Oficinas y puntos de pago 
+| 6     Facturación y cartera     
+| 7     Soporte M@STV PLAY        
+| 8     Calidad de la red         
+| 9     Soporte técnico           
+| 0     Finalizar conversación    
+
+---
+
+##  Arquitectura
+
+```text
+┌─────────────┐
+│  WhatsApp   │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Bot Node.js │
+│ Puerto 9019 │
+└──────┬──────┘
+       │ API
+       ▼
+┌─────────────┐
+│   Backend   │
+│ Puerto 9020 │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Frontend   │
+│ Puerto 5173 │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ PostgreSQL  │
+└─────────────┘
 ```
-WhatsApp → Bot (puerto 9019) → Backend (9020) → Frontend (5173) → BD
-```
-
-Todo se maneja con WebSockets, entonces los mensajes llegan en tiempo real al panel.
 
 ---
 
-## 🚀 Instalación (por si alguien quiere correrlo)
+## Stack Tecnológico
+
+### Backend
+
+* Node.js
+* Express
+* PostgreSQL
+* JWT
+* Socket.io
+
+### Bot
+
+* whatsapp-web.js
+* Puppeteer
+
+### Frontend
+
+* React
+* Vite
+* TailwindCSS
+
+### Infraestructura
+
+* Ubuntu Server
+* PM2
+* Nginx
+
+---
+
+## Instalación
+
+### 1. Clonar repositorio
 
 ```bash
-git clone https://github.com/JarithHernandez/whatsapp-bot-mastv.git
-cd whatsapp-bot-mastv
-npm install
-cd soporte-whatsapp/backend && npm install
-cd ../frontend && npm install && npm run build
+git clone https://github.com/tuusuario/bot-whatsapp-mastv.git
+cd bot-whatsapp-mastv
 ```
 
-Después configuras las variables de entorno, tu base de datos, y lo corres con PM2:
+### 2. Instalar dependencias
+
+```bash
+npm install
+
+cd soporte-whatsapp/backend
+npm install
+
+cd ../frontend
+npm install
+```
+
+### 3. Construir frontend
+
+```bash
+npm run build
+```
+
+---
+
+## Ejecución
+
+### Iniciar servicios
 
 ```bash
 pm2 start ecosystem.config.js
-pm2 save
 ```
 
-Escaneás el QR que aparece en los logs y ya.
+### Ver logs
+
+```bash
+pm2 logs
+```
+
+### Escanear QR
+
+```bash
+pm2 logs bot-whatsapp
+```
 
 ---
 
-## 📁 Algo de la estructura
+## 📂 Estructura del Proyecto
 
-```
-bot-whatsapp/
-├── app.js
-├── ecosystem.config.js
+```bash
+project/
+│
+├── bot-whatsapp/
+│
 ├── soporte-whatsapp/
-│   ├── backend/       # API + WebSockets
-│   └── frontend/      # Panel de agentes
-└── .wwebjs_auth/      # Sesión guardada de WhatsApp
+│   ├── backend/
+│   └── frontend/
+│
+├── ecosystem.config.js
+│
+└── README.md
 ```
 
 ---
 
-## 👤 Sobre mí
+## 📈 Funcionalidades Destacadas
 
-Soy **Jarith Hernandez** (nick: `nickynimhe`), desarrollador full-stack.  
-Este proyecto lo hice como parte de un requerimiento técnico para una empresa de telecomunicaciones.
+| Funcionalidad         | Estado |
+| --------------------- | ------ |
+| Bot WhatsApp          | ✅      |
+| Chat Tiempo Real      | ✅      |
+| Sistema Tickets       | ✅      |
+| Gestión Agentes       | ✅      |
+| Historial Chats       | ✅      |
+| Archivos Adjuntos     | ✅      |
+| Reconexión Automática | ✅      |
 
-[![GitHub](https://img.shields.io/badge/GitHub-JarithHernandez-181717?style=flat-square&logo=github)](https://github.com/JarithHernandez)
+---
+
+## 👨‍💻 Autor
+
+### Tu Nombre
+
+Desarrollador Full Stack
+
+🐙 GitHub: https://github.com/tuusuario
+
+💼 LinkedIn: https://linkedin.com/in/tuusuario
+
+🌐 Portafolio: https://tuportafolio.com
+
+📧 Email: [tuemail@gmail.com](mailto:tuemail@gmail.com)
+
+---
+
+## 🙏 Agradecimientos
+
+Este proyecto fue desarrollado como parte de un requerimiento técnico para M@stv Producciones.
+
+La implementación, arquitectura, desarrollo y documentación fueron realizados de forma independiente con fines profesionales y educativos.
 
 ---
 
 ## 📄 Licencia
 
-MIT — libre de usar, modificar y compartir. Solo da crédito.
-
----
-
-> ¿Preguntas? Abrí un issue o háblame directamente.
-```
-
-## También podés agregar imágenes
-
-Si querés que se vea más lindo, podés agregar capturas del bot o del panel:
-
-```markdown
-## 🖼️ Capturas
-
-![Menú del bot](https://i.imgur.com/xxxxx.png)
-![Panel de agentes](https://i.imgur.com/yyyyy.png)
-```
-
-## Y un badge de visitas (opcional)
-
-```markdown
-![Visitas](https://komarev.com/ghpvc/?username=JarithHernandez&label=Repo+Views&color=blue&style=flat-square)
-```
-
-## Tips para que NO parezca IA:
-
-| Hacer ✅ | Evitar ❌ |
-|---------|----------|
-| "hice", "usé", "me funcionó" | "se implementó", "se utilizó" |
-| "básicamente", "onda", "qué sé yo" | textos demasiado formales |
-| Emojis naturales 😅 | Emojis exagerados |
-| Explicaciones cortas y directas | Párrafos eternos |
-
-¿Querés que le agregue o le saque algo?
+MIT License © 2026 Tu Nombre

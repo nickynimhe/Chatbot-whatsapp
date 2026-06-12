@@ -66,6 +66,16 @@ Proyecto desarrollado como solución de atención al cliente mediante WhatsApp, 
 
 ---
 
+## Capturas
+
+### Dashboard
+
+![Dashboard](docs/dashboard.png)
+
+### Chat en tiempo real
+
+![Chat](docs/chat.gif)
+
 ##  Menú del Bot
 
 
